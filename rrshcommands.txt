@@ -1,0 +1,5 @@
+ls
+cd
+mkdir
+pwd
+cat
