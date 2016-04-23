@@ -10,16 +10,21 @@ using namespace std;
 
 void echo(int fd);
 
+string whiteStrip(char * s);
+
 void read_users(vector<string> & users, vector<string> & pass);
 void read_commands(vector<string> & commands);
+int handle_login(vector<string> & users, vector<string> & pass, int fd, char * addr, char * port);
+int is_valid_command(char * arg, vector<string> & cmds);
 
 int main(int argc, char **argv) 
 {
     int listenfd, connfd;
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;  /* Enough space for any address */
-    char client_hostname[MAXLINE], client_port[MAXLINE];
-
+    char buf[MAXLINE], client_hostname[MAXLINE], client_port[MAXLINE];
+    rio_t rio;
+	
     vector<string> users, passwords, commands;
 
 
@@ -35,27 +40,137 @@ int main(int argc, char **argv)
     read_commands(commands);
 
 
-    exit(0);
-
     listenfd = Open_listenfd(argv[1]);
+
     while (1) {
-	clientlen = sizeof(struct sockaddr_storage); 
-	connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-        Getnameinfo((SA *) &clientaddr, clientlen, client_hostname, MAXLINE, 
-                    client_port, MAXLINE, 0);
-        printf("Connected to (%s, %s)\n", client_hostname, client_port);
+      struct command *c;
+      clientlen = sizeof(struct sockaddr_storage); 
+      connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+      
+      Getnameinfo((SA *) &clientaddr, clientlen, client_hostname, MAXLINE, 
+		  client_port, MAXLINE, 0);
+      
+      
+      // initialize read 
+      //Rio_readinitb(&rio, connfd);
+      
+      // authenticate user
+      if( handle_login(users, passwords, connfd, client_hostname, client_port) ){
+	printf("Connected to (%s, %s)\n", client_hostname, client_port);
+      } else {
 	
-	//c = parse_command(inLine.c_str());
+      }
+      
+      
+      // init and
+	// read line
+      Rio_readinitb(&rio, connfd);
+      Rio_readlineb(&rio, buf, MAXLINE);
+      
+      
+      
+      c = parse_command(buf);
+      char * cmd = c->args[0];
+      
+      if( cmd != NULL && 
+	  is_valid_command(cmd, commands) &&
+	  c->out_redir == NULL &&
+	  c->in_redir == NULL){
+	
+	cout << "user  executing " << cmd << endl;
 
+	for( int i=1; c->args[i] != NULL; i++ ){
 
-      //handle_command(c);
-      //free_command(c);
+	}
 
+      } else {
+	cout << "invalid command" << endl;
+	
+      }
 
-	//echo(connfd);
-	Close(connfd);
+      while( c->args[0] != NULL && 
+	     c->args[0] != "exit" && 
+	     c->out_redir == NULL &&
+	     c->in_redir == NULL){
+	
+	//cout << "Executing command '" << arg
+	
+      }
+      
+      Rio_writen(connfd, buf, strlen(buf));
+      
+      
+      free_command(c);
+      
+      Close(connfd);	
     }
+    
+    close(listenfd);
     exit(0);
+}
+
+
+int handle_login(vector<string> & users, vector<string> & pass, int fd, char * host, char * port)
+{
+  int userIndex;
+  char buf[MAXLINE];
+  bool vUser=false, vPass=false;
+  rio_t rio;
+
+  // init read
+  Rio_readinitb(&rio, fd);
+
+  // read in username entry
+  int rlen = Rio_readlineb(&rio, buf, MAXLINE);
+
+  if( buf[rlen-1] != '\n' ){
+    cerr << "- No newline received on username input!" << endl;
+    exit(1);
+  }
+  buf[ rlen-1 ] = 0;
+
+  // check if in users list
+  userIndex = 0;
+
+  for( string s:users ){
+    if( s.compare(string(buf)) == 0 ){
+      cout << s << " logging in from " << host << " on port " << port << "." << endl;
+      vUser = true;
+      break;
+    }
+    userIndex++;
+  }
+
+  // invalid user cannot log in
+  if( !vUser ){
+    cout << "User " << buf << " not in users list!" << endl;
+    return 0;
+  }
+
+  // init and read in password entry
+  Rio_readinitb(&rio, fd);
+  rlen = Rio_readlineb(&rio, buf, MAXLINE);
+
+  buf[ rlen-1 ] = 0;
+
+  if( pass[userIndex].compare( string(buf) ) != 0 ){
+    cout << users[userIndex] << " denied access." << endl;
+    return false;
+  } else {
+    cout << users[userIndex] << " logged in." << endl;
+    return true;
+  }
+}
+
+int is_valid_command(char * arg, vector<string> & cmds)
+{
+  for( string c:cmds ){
+    if( c.compare(arg) == 0 ){
+      return true;
+    }
+  }
+
+  return false;
 }
 
 void read_users(vector<string> & users, vector<string> & pass) 
@@ -168,4 +283,16 @@ void read_commands(vector<string> & commands)
   }
 
   inFile.close();
+}
+
+string whiteStrip(char * s)
+{
+  string out(s);
+
+  while( out.at(0) == ' ' )
+    out = out.erase(0, 1);
+  while( out.at(out.size()-1) == ' ' )
+    out.pop_back();
+
+  return out;
 }

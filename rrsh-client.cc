@@ -65,7 +65,7 @@ int login(int fd, rio_t & rio)
 
 
   while( strcmp( buf, RRSH_LOGIN_APPROVED ) != 0 ){
-    while( !getline(cin, uname) ||  uname.size() > 40 ){
+    while( !getline(cin, uname) ||  uname.size() > RRSH_MAX_CRED_LENGTH ){
       cout << "Please enter a valid username: ";
     }
     uname.append("\n");
@@ -73,23 +73,24 @@ int login(int fd, rio_t & rio)
     
     Rio_writen(fd, buf, uname.size());
     
-    Rio_readlineb(&rio, buf, MAXLINE);
+    //Rio_readlineb(&rio, buf, MAXLINE);
     
   
     
-    cout << "received response: " << buf << endl;
+    //cout << "received response: " << buf << endl;
     
     /////
     
     cout << "Password: ";
     
-    while( !getline(cin, pass) || pass.length() > RRSH_MAX_CRED_LENGTH ){
+    while( !getline(cin, pass) || pass.size() > RRSH_MAX_CRED_LENGTH ){
       cout << "Please enter a valid password: ";
     }
+    cout << "sending";
     pass.append("\n");
     strcpy(buf, pass.c_str());
     
-    Rio_writen(fd, buf, uname.size());
+    Rio_writen(fd, buf, pass.size());
     
     Rio_readlineb(&rio, buf, MAXLINE);
     
