@@ -23,35 +23,32 @@ int main(int argc, char **argv)
   port = argv[2];
   
   clientfd = Open_clientfd(host, port);
-  Rio_readinitb(&rio, clientfd);
 
+  // handle user login
   login(clientfd, rio);
 
 
-  Close(clientfd);
-  
-  ////
-  
   while( getline(cin, inLine) ){
     
     if(inLine.length()) {
+      if(inLine.compare("exit") == 0) break;
+      strcpy( buf, inLine.c_str() );
+      Rio_writen( clientfd, buf, MAXLINE );
+      
+      int nb = 1;
+      
+      Rio_readinitb(&rio, clientfd);
 
-
+      while( strcmp(buf, "RRSH COMMAND COMPLETED\n") != 0 && nb ){
+	cout << buf;
+	nb = Rio_readlineb( &rio, buf, MAXLINE );
+      } 
 
     }
     
   }
-  
 
-  ////
-
-
-  while (Fgets(buf, MAXLINE, stdin) != NULL) {
-    Rio_writen(clientfd, buf, strlen(buf));
-    Rio_readlineb(&rio, buf, MAXLINE);
-    Fputs(buf, stdout);
-  }
-  Close(clientfd); //line:netp:echoclient:close
+  Close(clientfd);
   exit(0);
 }
 
@@ -60,11 +57,11 @@ int login(int fd, rio_t & rio)
 {
   char buf[MAXLINE];
   string uname, pass;
-    
-  cout << "Username: ";
-
 
   while( strcmp( buf, RRSH_LOGIN_APPROVED ) != 0 ){
+
+    cout << "Username: ";
+
     while( !getline(cin, uname) ||  uname.size() > RRSH_MAX_CRED_LENGTH ){
       cout << "Please enter a valid username: ";
     }
@@ -73,30 +70,19 @@ int login(int fd, rio_t & rio)
     
     Rio_writen(fd, buf, uname.size());
     
-    //Rio_readlineb(&rio, buf, MAXLINE);
-    
-  
-    
-    //cout << "received response: " << buf << endl;
-    
-    /////
-    
     cout << "Password: ";
     
     while( !getline(cin, pass) || pass.size() > RRSH_MAX_CRED_LENGTH ){
       cout << "Please enter a valid password: ";
     }
-    cout << "sending";
     pass.append("\n");
     strcpy(buf, pass.c_str());
     
     Rio_writen(fd, buf, pass.size());
-    
+    Rio_readinitb(&rio, fd);
     Rio_readlineb(&rio, buf, MAXLINE);
-    
-    cout << "received response: " << buf << endl;
-
+    buf[strlen(buf)-1] = '\n';
   }
-  exit(0);
   
+  cout << buf << endl;
 }

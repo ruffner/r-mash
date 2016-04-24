@@ -3,18 +3,23 @@
 #include <vector>
 #include <string>
 #include <cstdlib>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "csapp.h"
 #include "rrsh.h"
 
 using namespace std;
 
-void echo(int fd);
+int userId = -1;
 
 string whiteStrip(char * s);
 
 void read_users(vector<string> & users, vector<string> & pass);
 void read_commands(vector<string> & commands);
 int handle_login(vector<string> & users, vector<string> & pass, int fd, char * addr, char * port);
+void handle_session(int connfd, vector<string> & users, vector<string> & commands);
 int is_valid_command(char * arg, vector<string> & cmds);
 
 int main(int argc, char **argv) 
@@ -33,17 +38,17 @@ int main(int argc, char **argv)
       exit(0);
     }
 
-
+    // populate user/pass lists
     read_users(users, passwords);
     
-
+    // load valid commands
     read_commands(commands);
-
-
+    
+    // listen for incoming connections on the specified port
     listenfd = Open_listenfd(argv[1]);
 
+
     while (1) {
-      struct command *c;
       clientlen = sizeof(struct sockaddr_storage); 
       connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
       
@@ -51,64 +56,133 @@ int main(int argc, char **argv)
 		  client_port, MAXLINE, 0);
       
       
-      // initialize read 
-      //Rio_readinitb(&rio, connfd);
-      
       // authenticate user
       if( handle_login(users, passwords, connfd, client_hostname, client_port) ){
-	printf("Connected to (%s, %s)\n", client_hostname, client_port);
+	// login success
+	cout << "Connected to (" << client_hostname << ", " << client_port << ")" << endl;
       } else {
-	
+
+	// bad login attemp, restart loop
+	Close(connfd);	
+	continue;
       }
       
-      
-      // init and
-	// read line
-      Rio_readinitb(&rio, connfd);
-      Rio_readlineb(&rio, buf, MAXLINE);
-      
-      
-      
-      c = parse_command(buf);
-      char * cmd = c->args[0];
-      
-      if( cmd != NULL && 
-	  is_valid_command(cmd, commands) &&
-	  c->out_redir == NULL &&
-	  c->in_redir == NULL){
-	
-	cout << "user  executing " << cmd << endl;
+      // deal with fork/execv
+      handle_session(connfd, users, commands);
 
-	for( int i=1; c->args[i] != NULL; i++ ){
-
-	}
-
-      } else {
-	cout << "invalid command" << endl;
-	
-      }
-
-      while( c->args[0] != NULL && 
-	     c->args[0] != "exit" && 
-	     c->out_redir == NULL &&
-	     c->in_redir == NULL){
-	
-	//cout << "Executing command '" << arg
-	
-      }
-      
-      Rio_writen(connfd, buf, strlen(buf));
-      
-      
-      free_command(c);
-      
-      Close(connfd);	
+      // done with connection
+      //Close(connfd);	
     }
     
+    // done listening for connections
     close(listenfd);
     exit(0);
 }
 
+void handle_session(int connfd, vector<string> & users, vector<string> & commands)
+{
+  char buf[MAXLINE];
+  rio_t rio;
+  
+  Rio_readinitb(&rio, connfd);
+
+  while( Rio_readlineb(&rio, buf, MAXLINE) > 0 ){
+    struct command * c;
+    
+    c = parse_command(buf);
+    char * cmd = c->args[0];
+    
+    if( c->args[0] != NULL && 
+	is_valid_command(c->args[0], commands) &&
+	c->out_redir == NULL &&
+	c->in_redir == NULL ){
+      
+      cout << "User " << users[userId] << " executing " << buf << endl;
+      
+
+
+
+      pid_t p;
+      int status;
+      int new_out, new_err, nullfd;
+      // start new process
+      p = fork();
+
+      // child
+      if( p == 0 ){
+	
+	// redirect stdin to /dev/null
+	nullfd = open( "/dev/null", O_RDONLY );
+	dup2(nullfd, 0);
+
+
+	// redirect out to socket
+	new_out = dup2(connfd, 1);
+
+	// redirect err to socket
+	new_err = dup2(connfd, 2);
+
+	//close(connfd);
+
+	int ret = 0;
+
+	// execute external command
+	//	if( (ret = execv(c->args[0], c->args)) < 0 )
+	if( (ret = execv(buf, c->args)) < 0 )
+	  cerr << "Error: failed to execute '" << buf << "'" << endl;
+
+	
+
+	if( ret < 0 )
+	  exit(-1);
+	else
+	  exit(0);
+      }
+      // parent process
+      else if ( p > 0 ){
+	//close(connfd);
+	// wait for the child process to exit()
+	waitpid(p, &status, 0); 
+
+	strcpy(buf, "\nRRSH COMMAND COMPLETED\n");
+	Rio_writen(connfd, buf, MAXLINE);
+
+
+	// close input
+	dup2(0, nullfd);
+	dup2(1, new_out);
+	dup2(2, new_err);
+
+	close(nullfd);
+	close(new_out);
+	close(new_err);
+
+	cerr << "Commmand returned " << status;
+      }
+      else {
+	// fork failed
+	cerr << "fork() failed!" << endl;
+      }
+
+    } else if( strcmp(cmd,"exit") == 0 ){
+      cout << "User " << users[userId] << " terminated session." << endl;
+    } else {
+      cout << "User " << users[userId] << " sent the invalid command: " << buf << endl;
+      string msg = ": Command invalid.\n";
+      strcpy(buf+strlen(buf), msg.c_str());
+      Rio_writen(connfd, buf, MAXLINE);
+    }
+    
+    
+    //Rio_writen(connfd, buf, strlen(buf));
+    
+  
+    free_command(c);
+    Rio_readinitb(&rio, connfd);
+  }
+
+  
+}
 
 int handle_login(vector<string> & users, vector<string> & pass, int fd, char * host, char * port)
 {
@@ -155,9 +229,14 @@ int handle_login(vector<string> & users, vector<string> & pass, int fd, char * h
 
   if( pass[userIndex].compare( string(buf) ) != 0 ){
     cout << users[userIndex] << " denied access." << endl;
+    strcpy(buf, RRSH_LOGIN_DENIED);
+    Rio_writen(fd, buf, MAXLINE);
     return false;
   } else {
+    userId = userIndex;
     cout << users[userIndex] << " logged in." << endl;
+    strcpy(buf, RRSH_LOGIN_APPROVED);
+    Rio_writen(fd, buf, MAXLINE);
     return true;
   }
 }

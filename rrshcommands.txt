@@ -1,4 +1,5 @@
-ls
+/bin/pwd
+/bin/ls
 cd
 mkdir
 pwd
