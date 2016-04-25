@@ -24,8 +24,6 @@ int main(int argc, char **argv)
   
   clientfd = Open_clientfd(host, port);
 
-  Rio_readinitb(&rio, clientfd);
-
   // handle user login
   login(clientfd, rio);
 
@@ -63,12 +61,17 @@ int login(int fd, rio_t & rio)
   char buf[MAXLINE];
   string uname, pass;
 
-  while( strcmp( buf, RRSH_LOGIN_APPROVED ) != 0 ){
+  Rio_readinitb(&rio, fd);  
 
+  while( strcmp( buf, RRSH_LOGIN_APPROVED ) != 0 &&
+	 strcmp( buf, RRSH_LOGIN_DENIED ) != 0){
+    
     cout << "Username: ";
 
-    while( !getline(cin, uname) ||  uname.size() > RRSH_MAX_CRED_LENGTH ){
-      cout << "Please enter a valid username: ";
+    while( !getline(cin, uname) || 
+	   uname.size() > RRSH_MAX_CRED_LENGTH ||
+	   !uname.size() ){
+      cout << "Username: ";
     }
     uname.append("\n");
     strcpy(buf, uname.c_str());
@@ -89,4 +92,8 @@ int login(int fd, rio_t & rio)
   }
   
   cout << buf << endl;
+ 
+  if( strcmp( buf, RRSH_LOGIN_DENIED ) == 0 ){
+    exit(1);
+  }
 }

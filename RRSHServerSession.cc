@@ -89,9 +89,8 @@ bool RRSHServerSession::awaitAuth()
   uname.pop_back();
   pass.pop_back();
 
-  cout << "got user " << uname << endl;
-  cout << "got pass " << pass << endl;
-  
+  cout << "User " << uname << " trying login." << endl;
+
   for( int i=0; i<users.size(); i++ ){
     if( users[i].name == uname && users[i].pass == pass ){
       strcpy(nameBuf, RRSH_LOGIN_APPROVED);
