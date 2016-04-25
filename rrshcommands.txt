@@ -1,5 +1,8 @@
 /bin/pwd
 /bin/ls
+/usr/bin/uptime
+
+
 cd
 mkdir
 pwd

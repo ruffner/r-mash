@@ -24,28 +24,33 @@ int main(int argc, char **argv)
   
   clientfd = Open_clientfd(host, port);
 
+  Rio_readinitb(&rio, clientfd);
+
   // handle user login
   login(clientfd, rio);
 
+  cout << RRSH_PROMPT;
 
   while( getline(cin, inLine) ){
-    
+    Rio_readinitb(&rio, clientfd);
+
     if(inLine.length()) {
       if(inLine.compare("exit") == 0) break;
       strcpy( buf, inLine.c_str() );
       Rio_writen( clientfd, buf, MAXLINE );
       
       int nb = 1;
-      
-      Rio_readinitb(&rio, clientfd);
 
-      while( strcmp(buf, "RRSH COMMAND COMPLETED\n") != 0 && nb ){
-	cout << buf;
+      do {
 	nb = Rio_readlineb( &rio, buf, MAXLINE );
-      } 
+	if( strcmp(buf, "RRSH COMMAND COMPLETED\n") != 0 )
+	  cout << buf;
+      } while( strcmp(buf, "RRSH COMMAND COMPLETED\n") != 0 && nb &&
+	       strcmp(buf, "Command Dissallowed\n") != 0);
 
     }
     
+    cout << RRSH_PROMPT;
   }
 
   Close(clientfd);
@@ -79,7 +84,6 @@ int login(int fd, rio_t & rio)
     strcpy(buf, pass.c_str());
     
     Rio_writen(fd, buf, pass.size());
-    Rio_readinitb(&rio, fd);
     Rio_readlineb(&rio, buf, MAXLINE);
     buf[strlen(buf)-1] = '\n';
   }

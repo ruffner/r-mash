@@ -1,6 +1,8 @@
 #ifndef RRSH_H_INCLUDED
 #define RRSH_H_INCLUDED
 
+#define RRSH_PROMPT "r-mash>"
+
 #define RRSH_MAX_COMMAND_ARGS 50
 #define RRSH_MAX_CRED_LENGTH 40
 
