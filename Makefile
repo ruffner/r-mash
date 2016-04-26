@@ -13,5 +13,4 @@ csapp.o: csapp.h csapp.c
 RRSHServerSession.o: RRSHServerSession.h RRSHServerSession.cc
 
 clean:
-	rm -f *.o *~ rrsh-server rrsh-client csapp.o RRSHServerSession.o
-
+	rm -f *.o *~ rrsh-server rrsh-client

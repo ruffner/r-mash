@@ -13,6 +13,7 @@
 #include "csapp.h"
 #include "rrsh.h"
 
+// struct to hold user info
 struct user {
   std::string name;
   std::string pass;
