@@ -44,6 +44,7 @@ private:
 
 
   bool isWhite(char c);
+  bool isWhite(std::string s);
   bool isValidCommand(char * cmd);
 };
 

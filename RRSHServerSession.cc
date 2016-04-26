@@ -163,9 +163,14 @@ void RRSHServerSession::awaitExit()
     if( strcmp(buf, "exit") == 0 ){
       break;
     }
+
+    if( isWhite(string(buf)) )
+      continue;
     
+    cout << "parsing command" << endl;
     c = parse_command(buf);
-    
+    cout << "after" << endl;
+
     // if command is not in provided list, send disallowed message
     if( !isValidCommand( c->args[0] ) ){
       cout << "User " << getActiveUser() << " blocked from: " << buf << endl;
@@ -259,6 +264,16 @@ string RRSHServerSession::getActiveUser()
 bool RRSHServerSession::isWhite(char c)
 {
   return ( c==' ' || c=='\t' || c=='\n' );
+}
+
+// helper
+bool RRSHServerSession::isWhite(string s)
+{
+  for( char c:s )
+    if( c != ' ' && c !='\t' && c != '\n' )
+      return false;
+
+  return true;
 }
 
 // helper

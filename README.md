@@ -11,6 +11,7 @@ The client: ```./rrsh-client <hostname> <port>```. Where ```<hostname>``` and ``
 
 ### ToDo
 - Imlement ```select()``` to handle multiple spawned connections.
+- Occasionally first line of command output is clobbered
 
 ### Provided files
 - ```csapp.h```: I/O wrappers
